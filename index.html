@@ -1,22 +1,69 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
     <title>Locate1</title>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
-    <!-- <link rel='stylesheet' type='text/css' media='screen' href='main.css'> -->
-    
+    <link rel='stylesheet' type='text/css' media='screen' href='index.css'>
+
 </head>
+
 <body>
+     <script src="html5-qrcode.min.js"></script>
     <h1 id="demo"></h1>
-    <button onclick="getLocation()">Locate</button>
+
+    <section class="qrCode-Scanner">
+        <div id="scanner" class="scanner"></div>
+    </section>
+    <section class="Location-details">
+        <div class="bus-route">
+            <h3>Route:</h3>
+            <p>
+            <blockquote><span>UNIBEN-Maingate</span> - - - > <span>Ring road</span></blockquote>
+            </p>
+        </div>
+        <div class="loading">
+            <img src="./qTap.png" alt="">
+            <p>Enter the Nearest Designated Bus-stops</p>
+        </div>
+
+
+        <div class="location">
+            <img src="./pin.png" alt="" width="20px" height="25px"
+                style="object-fit: cover; object-position: center; margin-right: 0.5rem;">
+            <span> UNIBEN - MAIN GATE</span>
+        </div>
+
+        <div class="popUp success-con">
+            <div class="content success">
+                <p class="" id="value">value,</p>
+                <h2>Success!</h2>
+            </div>
+        </div>
+
+        <div class="popUp failed-con">
+            <div class="content failed">
+                <h2>Please Try Again!</h2>
+            </div>
+        </div>
+
+    </section>
+
+
+    
     <script>
         const x = document.getElementById("demo");
-
+        let trips = JSON.parse(localStorage.getItem('recorded-trips')) == null ? [] : JSON.parse(localStorage.getItem('recorded-trips'));
+        let locate;
+        let init = true;
+        const welcomeSound = new Audio("./welcome-traveler-97167.mp3");
+        const goodbyeSound = new Audio("./annoyed-goodbye-96952.mp3");
 
         const busStops = [
-            {name: "Main gate", lat: 6.399858, lon: 5.609137}
+            { name: "Main gate", lat: 6.399858, lon: 5.609137 },
+            {name: "QS Building", lat: 6.401666, lon: 5.619330 }
         ];
 
         navigator.geolocation.watchPosition(position => {
@@ -25,54 +72,145 @@
 
             checkProximity(userLat, userLong);
         },
-        error => {
-            console.error("Error getting location:", error);
-        },
-        {
-            enableHighAccuracy: true,
-            maximumAge: 0,
-            timeout: 100000
-        }
-    );
-
-    function checkProximity(lat, lon){
-        busStops.forEach(stop => {
-            const distance = getDistanceFromLatLongInMeters(lat, lon, stop.lat, stop.lon);
-            if(distance < 50){
-                console.log(`Arrived at ${stop.name}`);
-                x.innerHTML = `Arrived at ${stop.name}`
-            } else{
-                console.log("Not yet There");
-                x.innerHTML = "Not yet there";
+            error => {
+                console.error("Error getting location:", error);
+            },
+            {
+                enableHighAccuracy: true,
+                maximumAge: 0,
+                timeout: 100000
             }
-        });
-    }
+        );
 
-    function getDistanceFromLatLongInMeters(lat1, lon1, lat2, lon2){
-        const R = 6371000;
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
+        function checkProximity(lat, lon) {
+            busStops.forEach(stop => {
+                const distance = getDistanceFromLatLongInMeters(lat, lon, stop.lat, stop.lon);
+                if (distance < 50) {
+                    console.log(`Arrived at ${stop.name}`);
+                    locate = stop.name
+                    document.getElementsByClassName("loading")[0].style.display = "none";
+                    // x.innerHTML = `Arrived at ${stop.name}`
+                } else {
+                    console.log("Not yet There");
+               
+                    // x.innerHTML = "Not yet there";
+                }
+            });
+        }
 
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }
-        // function getLocation(){
-        //     if(navigator.geolocation){
-        //         navigator.geolocation.getCurrentPosition(success, error);
-        //     } else{
-        //         x.innerHTML = "Geolocation is not supported by this browser.";
-        //     }
-        // }
+        function getDistanceFromLatLongInMeters(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
 
-        // function success(position){
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+        
 
-        //     x.innerHTML = "Latitude: " + position.coords.latitude + "<br>Longitude: " + position.coords.longitude;
-        // }
+        // Distance Calculation
+        function getDistanceInKm(lat1, lon1, lat2, lon2){
+            const R = 6371; //Radius of the Earth
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon2) * Math.PI /180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
 
-        // function error(){
-        //     alert("Sorry, no position available")
-        // }
+        //Calculate Fare
+        function calculateFare(startStop, endStop, ratePerKm = 0.5){
+            const start = busStops[startStop];
+            const end = busStops[endStop];
+
+            if(!start || !end){
+                console.error("Invalid Stop Names");
+                return null;
+            }
+
+            const distance = getDistanceInKm(start.lat, start.lon, end.lat, end.lon);
+            const fare = distance * ratePerKm;
+
+            return {
+                distance: distance.toFixed(2),
+                fare: fare.toFixed(2)
+            }
+
+        }
+
+        //Sample Usage
+
+        // const trip = calculateFare("stopA, stopc");
+        // console.log(`Distance: ${trip.distance} km`);
+        // console.log(`Fare: $${trip.fare`})
+
+
+
+        //Qr Code Scanner
+        const html5Scanner = new Html5Qrcode("scanner");
+        console.log(html5Scanner);
+
+        const qrCodeSuccessCallback = (decodedText, decodedResult) => {
+            console.log('started');
+            if (decodedText) {
+                checkCard(decodedText);
+                html5Scanner.stop();
+                setTimeout(()=>{
+                    document.getElementsByClassName("success-con")[0].style.display = "none";
+                document.getElementById("value").textContent = "";
+                start();
+                }, 3000)
+            };
+        };
+
+        function checkCard(decodedText){
+            //Check if th card has been scanned before
+            const card  = trips.find(c => c.id === decodedText);
+            console.log(card)
+            if(card){
+                console.log("User found");
+                card.dropOfLocation = locate;
+                console.log(trips)
+                localStorage.setItem("recorded-trips", JSON.stringify(trips));
+                const cost = calculateFare(card.pickUpLocation, card.dropOfLocation);
+
+                //Display Location and Price
+                document.getElementsByClassName("success-con")[0].style.display = "flex";
+                document.getElementById("value").textContent = `From: ${card.pickUpLocation}, To: ${card.dropOfLocation} - Price: N${cost.fare}`;
+
+                //Delete the Data because the Journey is now completed
+                const updatedCards = trips.filter(c => c.id !== decodedText);
+                localStorage.setItem("recorded-trips", JSON.stringify(updatedCards))
+                console.log(localStorage.getItem("recorded-trips"));
+
+                //Play Goodbye Sound
+                goodbyeSound.play();
+
+            } else{
+                const card = { id: `${decodedText}`, pickUpLocation: `${locate}`, dropOfLocation: null};
+                trips.push(card);
+                console.log(trips);
+                localStorage.setItem("recorded-trips", JSON.stringify(trips));
+
+
+                //Display Location 
+                document.getElementsByClassName("success-con")[0].style.display = "flex";
+                document.getElementById("value").textContent = `From: ${card.pickUpLocation}`;
+
+                //Play Welcome Sound
+                welcomeSound.play();
+            }
+            //if yes record the new destination, calculate the fair, display sucess
+            //if no record the card, record the destination
+        };
+
+        const config = { fps: 10, qrbox: { width: 200, height: 200 } };
+        function start(){
+        html5Scanner.start({ facingMode: "user" }, config, qrCodeSuccessCallback);
+        }
+        start();
     </script>
 </body>
+
 </html>
