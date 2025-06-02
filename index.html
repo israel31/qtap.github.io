@@ -11,8 +11,8 @@
 </head>
 
 <body>
-     <script src="html5-qrcode.min.js"></script>
-    <h1 id="demo"></h1>
+    <script src="html5-qrcode.min.js"></script>
+    <h1 id="demo"></h1> <!-- This is not currently used by the script, consider removing if not needed -->
 
     <section class="qrCode-Scanner">
         <div id="scanner" class="scanner"></div>
@@ -21,7 +21,7 @@
         <div class="bus-route">
             <h3>Route:</h3>
             <p>
-            <blockquote><span>UNIBEN-Maingate</span> - - - > <span>Ring road</span></blockquote>
+                <blockquote><span>UNIBEN-Maingate</span> - - - > <span>Ring road</span></blockquote>
             </p>
         </div>
         <div class="loading">
@@ -33,7 +33,7 @@
         <div class="location">
             <img src="./pin.png" alt="" width="20px" height="25px"
                 style="object-fit: cover; object-position: center; margin-right: 0.5rem;">
-            <span> UNIBEN - MAIN GATE</span>
+            <span id="current-location-name"> UNIBEN - MAIN GATE</span> <!-- Added an ID for easier update -->
         </div>
 
         <div class="popUp success-con">
@@ -45,7 +45,7 @@
 
         <div class="popUp failed-con">
             <div class="content failed">
-                <h2>Please Try Again!</h2>
+                <h2 id="failed-message">Please Try Again!</h2> <!-- Added an ID for easier update -->
             </div>
         </div>
 
@@ -54,164 +54,292 @@
 
     
     <script>
-        const x = document.getElementById("demo");
-        let trips = JSON.parse(localStorage.getItem('recorded-trips')) == null ? [] : JSON.parse(localStorage.getItem('recorded-trips'));
-        let locate;
-        let init = true;
+        // const x = document.getElementById("demo"); // Not used, can be removed
+        let trips = JSON.parse(localStorage.getItem('recorded-trips')) || []; // Simpler default
+        let locate; // Will store the name of the current/nearest bus stop
+        // let init = true; // Not used, can be removed
+
         const welcomeSound = new Audio("./welcome-traveler-97167.mp3");
         const goodbyeSound = new Audio("./annoyed-goodbye-96952.mp3");
+        const errorSound = new Audio("./error-sound.mp3"); // Optional: Add an error sound
 
+        // --- IMPORTANT: REPLACE WITH YOUR ACTUAL BUS STOPS ---
         const busStops = [
-             { name: "Main gate", lat: 6.399858, lon: 5.609137 },
-            {name: "QS Building", lat: 6.401666, lon: 5.619330 },
-             {name: "My House", lat: 6.400519, lon: 5.603269 },
-            {name: "My House", lat: 6.400139, lon: 5.603328}
+            { name: "UNIBEN-Maingate", lat: 6.399858, lon: 5.609137 },
+            { name: "Faculty of Engineering", lat: 6.400500, lon: 5.611000 }, // Example, use actual coords
+            { name: "June 12", lat: 6.401120, lon: 5.614500 },              // Example, use actual coords
+            { name: "BDPA", lat: 6.401666, lon: 5.619330 },                  // Example, use actual coords
+            { name: "Ugbowo Market", lat: 6.389722, lon: 5.606389 },        // Example, use actual coords
+            { name: "Oluku Junction", lat: 6.375000, lon: 5.583333 },       // Example, use actual coords
+            { name: "Ring road", lat: 6.334000, lon: 5.622000 }             // Example, use actual coords
+            // Add all your bus stops here with unique names and accurate lat/lon
         ];
+        // --- END OF BUS STOPS ---
+
+        const currentLocNameElement = document.getElementById("current-location-name");
+        const loadingElement = document.getElementsByClassName("loading")[0];
+        const successPopup = document.getElementsByClassName("success-con")[0];
+        const successMessageElement = document.getElementById("value");
+        const failedPopup = document.getElementsByClassName("failed-con")[0];
+        const failedMessageElement = document.getElementById("failed-message");
+
+
+        function showFailedMessage(message = "Please Try Again!", duration = 3000) {
+            failedMessageElement.textContent = message;
+            failedPopup.style.display = "flex";
+            if (errorSound && typeof errorSound.play === 'function') { // Play error sound if available
+                errorSound.play().catch(e => console.warn("Error playing error sound:", e));
+            }
+            setTimeout(() => {
+                failedPopup.style.display = "none";
+                failedMessageElement.textContent = "Please Try Again!"; // Reset to default
+            }, duration);
+        }
+
+        function showSuccessMessage(message, status = "Success!", duration = 3000) {
+            successMessageElement.textContent = message;
+            successPopup.querySelector("h2").textContent = status;
+            successPopup.style.display = "flex";
+            setTimeout(() => {
+                successPopup.style.display = "none";
+            }, duration);
+        }
+
 
         navigator.geolocation.watchPosition(position => {
             const userLat = position.coords.latitude;
             const userLong = position.coords.longitude;
-
             checkProximity(userLat, userLong);
         },
             error => {
                 console.error("Error getting location:", error);
+                currentLocNameElement.textContent = "Location Error";
+                loadingElement.style.display = "none"; // Hide loading if location fails
+                showFailedMessage("Could not get current location.", 5000);
             },
             {
-                enableHighAccuracy: true,
-                maximumAge: 0,
-                timeout: 100000
+                enableHighAccuracy: true, // Request high accuracy
+                maximumAge: 0,          // Don't use a cached position
+                timeout: 10000          // Wait up to 10 seconds for a position
             }
         );
 
         function checkProximity(lat, lon) {
+            let closestStop = null;
+            let minDistance = Infinity;
+
             busStops.forEach(stop => {
                 const distance = getDistanceFromLatLongInMeters(lat, lon, stop.lat, stop.lon);
-                if (distance < 50) {
-                    console.log(`Arrived at ${stop.name}`);
-                    locate = stop.name
-                    document.getElementsByClassName("loading")[0].style.display = "none";
-                    // x.innerHTML = `Arrived at ${stop.name}`
-                } else {
-                    console.log("Not yet There");
-               
-                    // x.innerHTML = "Not yet there";
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestStop = stop;
                 }
             });
+
+            if (closestStop && minDistance < 50) { // Proximity threshold: 50 meters
+                if (locate !== closestStop.name) { // Only update if the stop has changed
+                    console.log(`Arrived at ${closestStop.name}`);
+                    locate = closestStop.name;
+                    currentLocNameElement.textContent = locate; // Update displayed location name
+                    if (loadingElement.style.display !== "none") {
+                        loadingElement.style.display = "none";
+                    }
+                }
+            } else if (closestStop) {
+                // Still show the nearest stop even if not "arrived"
+                // currentLocNameElement.textContent = `Near ${closestStop.name} (${minDistance.toFixed(0)}m)`;
+                // Or, if you only want to show when "arrived":
+                // locate = undefined; // No longer "at" a specific stop
+                // currentLocNameElement.textContent = "Searching for nearest stop...";
+                console.log(`Nearest stop: ${closestStop.name} (${minDistance.toFixed(0)}m away). Not within 50m.`);
+            } else {
+                console.log("No bus stops defined or very far from all stops.");
+                currentLocNameElement.textContent = "No nearby stops";
+            }
         }
 
         function getDistanceFromLatLongInMeters(lat1, lon1, lat2, lon2) {
-            const R = 6371000;
+            const R = 6371000; // Radius of the Earth in meters
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
 
-            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c;
+            return R * c; // Distance in meters
         }
         
 
-        // Distance Calculation
+        // Distance Calculation in Kilometers
         function getDistanceInKm(lat1, lon1, lat2, lon2){
-            const R = 6371; //Radius of the Earth
+            const R = 6371; // Radius of the Earth in km
             const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon2) * Math.PI /180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
+            const dLon = (lon2 - lon1) * Math.PI / 180; // CORRECTED: was (lon2 - lon2)
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + 
+                      Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * 
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); // Use atan2 for better stability
+            return R * c; // Distance in km
         }
 
         //Calculate Fare
-        function calculateFare(startStop, endStop, ratePerKm = 0.5){
-            const start = busStops[startStop];
-            const end = busStops[endStop];
+        function calculateFare(startStopName, endStopName, ratePerKm = 0.5){ // ratePerKm e.g. 0.5 N per Km
+            const start = busStops.find(s => s.name === startStopName);
+            const end = busStops.find(s => s.name === endStopName);
 
-            if(!start || !end){
-                console.error("Invalid Stop Names");
+            if (!start) {
+                console.error("Invalid Start Stop Name for fare calculation:", startStopName);
+                showFailedMessage(`Error: Start stop "${startStopName}" not found.`);
+                return null;
+            }
+            if (!end) {
+                console.error("Invalid End Stop Name for fare calculation:", endStopName);
+                showFailedMessage(`Error: End stop "${endStopName}" not found.`);
                 return null;
             }
 
+            if (start.name === end.name) {
+                console.warn("Pickup and drop-off locations are the same:", start.name);
+                return {
+                    distance: "0.00",
+                    fare: "0.00" // Or a minimum fare if applicable
+                };
+            }
+
             const distance = getDistanceInKm(start.lat, start.lon, end.lat, end.lon);
+            
+            if (isNaN(distance)) {
+                console.error("Error calculating distance. Result was NaN.");
+                showFailedMessage("Error calculating distance for fare.");
+                return null;
+            }
+            
             const fare = distance * ratePerKm;
 
             return {
                 distance: distance.toFixed(2),
                 fare: fare.toFixed(2)
-            }
-
+            };
         }
-
-        //Sample Usage
-
-        // const trip = calculateFare("stopA, stopc");
-        // console.log(`Distance: ${trip.distance} km`);
-        // console.log(`Fare: $${trip.fare`})
-
-
 
         //Qr Code Scanner
         const html5Scanner = new Html5Qrcode("scanner");
-        console.log(html5Scanner);
+        console.log("Html5Qrcode instance created:", html5Scanner);
 
         const qrCodeSuccessCallback = (decodedText, decodedResult) => {
-            console.log('started');
+            console.log('QR Scan successful, decodedText:', decodedText);
             if (decodedText) {
-                checkCard(decodedText);
-                html5Scanner.stop();
-                setTimeout(()=>{
-                    document.getElementsByClassName("success-con")[0].style.display = "none";
-                document.getElementById("value").textContent = "";
-                start();
-                }, 3000)
-            };
+                html5Scanner.stop().then(() => {
+                    console.log("Scanner stopped successfully.");
+                    checkCard(decodedText); // Process the card
+                    // Restarting the scanner will be handled within checkCard's success/failure timeout
+                }).catch(err => {
+                    console.error("Error stopping scanner:", err);
+                    // Still try to process card and restart
+                    checkCard(decodedText);
+                });
+            }
         };
 
         function checkCard(decodedText){
-            //Check if th card has been scanned before
-            const card  = trips.find(c => c.id === decodedText);
-            console.log(card)
-            if(card){
-                console.log("User found");
-                card.dropOfLocation = locate;
-                console.log(trips)
-                localStorage.setItem("recorded-trips", JSON.stringify(trips));
+            if (!locate) {
+                console.error("Cannot process card: Current location ('locate') is undefined.");
+                showFailedMessage("Current location unknown. Please wait for GPS.", 4000);
+                setTimeout(startScanner, 4100); // Restart scanner after message
+                return;
+            }
+
+            const existingTripIndex = trips.findIndex(c => c.id === decodedText);
+            
+            if(existingTripIndex !== -1){ // User is alighting (card found)
+                const card = trips[existingTripIndex];
+                console.log("User found, processing drop-off:", card);
+                card.dropOfLocation = locate; // 'locate' is the current stop name
+
+                if (!card.pickUpLocation) {
+                    console.error("Critical Error: Existing trip has no pickUpLocation!", card);
+                    showFailedMessage("Trip data error. Please re-board.", 4000);
+                    // Optionally, remove this corrupted entry
+                    trips.splice(existingTripIndex, 1);
+                    localStorage.setItem("recorded-trips", JSON.stringify(trips));
+                    setTimeout(startScanner, 4100);
+                    return;
+                }
+                
+                console.log("Calculating fare from:", card.pickUpLocation, "to:", card.dropOfLocation);
                 const cost = calculateFare(card.pickUpLocation, card.dropOfLocation);
 
-                //Display Location and Price
-                document.getElementsByClassName("success-con")[0].style.display = "flex";
-                document.getElementById("value").textContent = `From: ${card.pickUpLocation}, To: ${card.dropOfLocation} - Price: N${cost.fare}`;
+                if(cost){ // Fare calculation was successful (or same stop)
+                    showSuccessMessage(`From: ${card.pickUpLocation}\nTo: ${card.dropOfLocation}\nPrice: N${cost.fare}`, "Trip Ended");
+                    if (goodbyeSound && typeof goodbyeSound.play === 'function') {
+                        goodbyeSound.play().catch(e => console.warn("Error playing goodbye sound:", e));
+                    }
 
-                //Delete the Data because the Journey is now completed
-                const updatedCards = trips.filter(c => c.id !== decodedText);
-                localStorage.setItem("recorded-trips", JSON.stringify(updatedCards))
-                console.log(localStorage.getItem("recorded-trips"));
+                    // Delete the Data because the Journey is now completed
+                    trips.splice(existingTripIndex, 1); // More efficient removal
+                    localStorage.setItem("recorded-trips", JSON.stringify(trips));
+                    console.log("Trip completed and removed. Remaining trips:", trips);
+                } else {
+                    // Fare calculation failed (error message already shown by calculateFare)
+                    console.error("Fare calculation failed for card:", card.id);
+                    // The failed message is handled by calculateFare, just need to restart scanner
+                }
+                setTimeout(startScanner, 3100); // Restart scanner after success/failure message duration
 
-                //Play Goodbye Sound
-                goodbyeSound.play();
-
-            } else{
-                const card = { id: `${decodedText}`, pickUpLocation: `${locate}`, dropOfLocation: null};
-                trips.push(card);
-                console.log(trips);
+            } else { // User is boarding (card not found)
+                console.log("New user, processing pick-up at:", locate);
+                
+                const newTrip = { id: `${decodedText}`, pickUpLocation: `${locate}`, dropOfLocation: null};
+                trips.push(newTrip);
                 localStorage.setItem("recorded-trips", JSON.stringify(trips));
+                console.log("New trip recorded:", trips);
 
-
-                //Display Location 
-                document.getElementsByClassName("success-con")[0].style.display = "flex";
-                document.getElementById("value").textContent = `From: ${card.pickUpLocation}`;
-
-                //Play Welcome Sound
-                welcomeSound.play();
+                showSuccessMessage(`Boarding at: ${newTrip.pickUpLocation}`, "Welcome!");
+                if (welcomeSound && typeof welcomeSound.play === 'function') {
+                    welcomeSound.play().catch(e => console.warn("Error playing welcome sound:", e));
+                }
+                setTimeout(startScanner, 3100); // Restart scanner after success message duration
             }
-            //if yes record the new destination, calculate the fair, display sucess
-            //if no record the card, record the destination
+        }
+
+        const config = { fps: 10, qrbox: { width: 250, height: 250 } }; // Slightly larger qrbox
+
+        function startScanner(){
+            // Check if scanner is already active, perhaps from a previous failed stop
+            if (html5Scanner && html5Scanner.getState() === Html5QrcodeScannerState.SCANNING) {
+                 console.log("Scanner is already running.");
+                 return;
+            }
+            console.log("Attempting to start scanner...");
+            html5Scanner.start({ facingMode: "user" }, config, qrCodeSuccessCallback)
+                .then(() => {
+                    console.log("QR Scanner started successfully.");
+                })
+                .catch(err => {
+                    console.error("Error starting QR scanner:", err);
+                    showFailedMessage("QR Scanner Error. Please refresh.", 5000);
+                });
+        }
+
+        // Initial call to start the scanner when the page loads
+        // Wait for a brief moment for location services to potentially initialize
+        setTimeout(() => {
+            if (!locate && busStops.length > 0) {
+                 currentLocNameElement.textContent = "Detecting location...";
+            }
+            startScanner();
+        }, 500);
+
+        // For Html5QrcodeScannerState (if you want to check state precisely)
+        const Html5QrcodeScannerState = {
+            NOT_STARTED: 0,
+            SCANNING: 1,
+            PAUSED: 2, // Html5Qrcode doesn't have a direct PAUSED state like this, but STOPPED is similar
+            STOPPED: 2 // Using this to represent not scanning
         };
 
-        const config = { fps: 10, qrbox: { width: 200, height: 200 } };
-        function start(){
-        html5Scanner.start({ facingMode: "user" }, config, qrCodeSuccessCallback);
-        }
-        start();
+
     </script>
 </body>
 
