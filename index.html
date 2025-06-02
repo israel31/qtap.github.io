@@ -329,7 +329,7 @@
         }
 
         console.log("Attempting to start scanner...");
-        html5Scanner.start({ facingMode: "user" }, config, qrCodeSuccessCallback)
+        html5Scanner.start({ facingMode: "environment" }, config, qrCodeSuccessCallback)
             .then(() => {
                 console.log("QR Scanner started successfully.");
             })
