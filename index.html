@@ -4,9 +4,10 @@
 <head>
     <meta charset='utf-8'>
     <meta http-equiv='X-UA-Compatible' content='IE=edge'>
-    <title>Locate1</title>
+    <title>qTap</title>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
     <link rel='stylesheet' type='text/css' media='screen' href='index.css'>
+    <link rel="icon" type="image/x-icon" href="./qTap.png">
 
 </head>
 
@@ -71,7 +72,8 @@
             { name: "BDPA", lat: 6.401666, lon: 5.619330 },                  // Example, use actual coords
             { name: "Ugbowo Market", lat: 6.389722, lon: 5.606389 },        // Example, use actual coords
             { name: "Oluku Junction", lat: 6.375000, lon: 5.583333 },       // Example, use actual coords
-            { name: "Ring road", lat: 6.334000, lon: 5.622000 }             // Example, use actual coords
+            { name: "Ring road", lat: 6.334000, lon: 5.622000 },             // Example, use actual coords
+            {name: "My House", lat: 6.400139, lon: 5.603328}
             // Add all your bus stops here with unique names and accurate lat/lon
         ];
         // --- END OF BUS STOPS ---
@@ -305,39 +307,46 @@
 
         const config = { fps: 10, qrbox: { width: 250, height: 250 } }; // Slightly larger qrbox
 
-        function startScanner(){
-            // Check if scanner is already active, perhaps from a previous failed stop
-            if (html5Scanner && html5Scanner.getState() === Html5QrcodeScannerState.SCANNING) {
-                 console.log("Scanner is already running.");
+        function startScanner() {
+    if (html5Scanner) {
+        // Assuming Html5Qrcode is the main object from the library
+        // and it has a property Html5QrcodeScannerState
+        if (typeof Html5Qrcode !== 'undefined' && Html5Qrcode.Html5QrcodeScannerState) {
+            if (html5Scanner.getState() === Html5Qrcode.Html5QrcodeScannerState.SCANNING) {
+                console.log("Scanner is already running (using library's SCANNING state).");
+                return;
+            }
+        } else {
+            // Fallback if the exact path isn't found, use direct numbers if you're sure
+            // This is less robust but can work if you know the numbers from debugging
+            const currentState = html5Scanner.getState();
+            console.log("Current scanner state (numeric):", currentState);
+            if (currentState === 2) { // Assuming 2 means SCANNING from your output
+                 console.log("Scanner is already running (using numeric state 2).");
                  return;
             }
-            console.log("Attempting to start scanner...");
-            html5Scanner.start({ facingMode: "user" }, config, qrCodeSuccessCallback)
-                .then(() => {
-                    console.log("QR Scanner started successfully.");
-                })
-                .catch(err => {
-                    console.error("Error starting QR scanner:", err);
-                    showFailedMessage("QR Scanner Error. Please refresh.", 5000);
-                });
         }
 
-        // Initial call to start the scanner when the page loads
-        // Wait for a brief moment for location services to potentially initialize
-        setTimeout(() => {
-            if (!locate && busStops.length > 0) {
-                 currentLocNameElement.textContent = "Detecting location...";
-            }
-            startScanner();
-        }, 500);
+        console.log("Attempting to start scanner...");
+        html5Scanner.start({ facingMode: "user" }, config, qrCodeSuccessCallback)
+            .then(() => {
+                console.log("QR Scanner started successfully.");
+            })
+            .catch(err => {
+                console.error("Error starting QR scanner:", err);
+                showFailedMessage("QR Scanner Error. Please refresh.", 5000);
+            });
+    }
+}
 
         // For Html5QrcodeScannerState (if you want to check state precisely)
-        const Html5QrcodeScannerState = {
-            NOT_STARTED: 0,
-            SCANNING: 1,
-            PAUSED: 2, // Html5Qrcode doesn't have a direct PAUSED state like this, but STOPPED is similar
-            STOPPED: 2 // Using this to represent not scanning
-        };
+        // const Html5QrcodeScannerState = {
+        //     NOT_STARTED: 0,
+        //     SCANNING: 1,
+        //     PAUSED: 2, // Html5Qrcode doesn't have a direct PAUSED state like this, but STOPPED is similar
+        //     STOPPED: 2 // Using this to represent not scanning
+        // };
+        console.log(Html5QrcodeScannerState)
 
 
     </script>
